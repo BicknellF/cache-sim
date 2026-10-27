@@ -1,5 +1,6 @@
 #include "cache.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <iostream>
@@ -40,6 +41,11 @@ void resetMatrix(std::vector<double>& C, int n) {
     for (int i = 0; i < n * n; i++) {
         C[i] = 0.0;
     }
+}
+
+double median(std::vector<double> times) {
+    std::sort(times.begin(), times.end());
+    return times[times.size() / 2];
 }
 
 void simRow(Cache& cache, int n) {
@@ -98,21 +104,32 @@ int main() {
     // Timing benchmark.
     std::vector<double> A(N * N, 1.0), B(N * N, 1.0), C(N * N, 0.0);
 
-    resetMatrix(C, N);
-    auto start = std::chrono::steady_clock::now();
-    mulRowFriendly(A, B, C, N);
-    auto end = std::chrono::steady_clock::now();
-    double tRow = std::chrono::duration<double, std::milli>(end - start).count();
+    //take median
+    const int RUNS = 11;
+    std::vector<double> rowTimes;
+    std::vector<double> colTimes;
 
-    resetMatrix(C, N);
-    start = std::chrono::steady_clock::now();
-    mulColFriendly(A, B, C, N);
-    end = std::chrono::steady_clock::now();
-    double tCol = std::chrono::duration<double, std::milli>(end - start).count();
+    for (int run = 0; run < RUNS; run++) {
+        resetMatrix(C, N);
+        auto start = std::chrono::steady_clock::now();
+        mulRowFriendly(A, B, C, N);
+        auto end = std::chrono::steady_clock::now();
+        rowTimes.push_back(std::chrono::duration<double, std::milli>(end - start).count());
 
-    std::cout << "Timing (N=" << N << "):\n";
+        resetMatrix(C, N);
+        start = std::chrono::steady_clock::now();
+        mulColFriendly(A, B, C, N);
+        end = std::chrono::steady_clock::now();
+        colTimes.push_back(std::chrono::duration<double, std::milli>(end - start).count());
+    }
+
+    double tRow = median(rowTimes);
+    double tCol = median(colTimes);
+
+    std::cout << "Timing (N=" << N << ", median of " << RUNS << " runs):\n";
     std::cout << "  row-friendly (i-k-j): " << tRow << " ms\n";
     std::cout << "  col-friendly (j-k-i): " << tCol << " ms\n";
+    std::cout << "  speedup:              " << tCol / tRow << "x\n\n";
 
     // Cache simulation.
     Cache cacheRow({32768, 64, 8, Policy::LRU});
